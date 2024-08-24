@@ -265,6 +265,7 @@ class SplatfactoModel(Model):
         scales = scales.repeat(1, 1)
         scales_xyz = torch.nn.Parameter(scales.requires_grad_(True))
         scales_t = torch.nn.Parameter(scales[:, :1].clone())
+        
         num_points = xyz.shape[0]
         rots = torch.zeros((num_points, 4)).cuda()
         rots[:, 0] = 1
@@ -299,6 +300,7 @@ class SplatfactoModel(Model):
             features_rest = torch.nn.Parameter(features[:, :, 1:].transpose(1, 2).contiguous().requires_grad_(True))
 
         opacities = torch.nn.Parameter(inverse_sigmoid(0.1 * torch.ones(num_points, 1)))
+        _objects_dc = torch.nn.Parameter(torch.zeros((num_points, 1)))
         self.entropyloss = 0
         self.knnloss = 0
         self.xyz_gradient_accum = torch.zeros((num_points, 1)).cuda()
@@ -318,6 +320,7 @@ class SplatfactoModel(Model):
                 "features_dc": features_dc,
                 "features_rest": features_rest,
                 "opacities": opacities,
+                "_objects_dc": _objects_dc
             }
         )
 
@@ -365,6 +368,10 @@ class SplatfactoModel(Model):
     @property
     def t(self):
         return self.gauss_params["t"]
+    
+    @property
+    def _objects_dc(self):
+        return self.gauss_params["_objects_dc"]
     
     @property
     def xyzt(self):
@@ -420,7 +427,7 @@ class SplatfactoModel(Model):
         if "xyz" in dict:
             # For backwards compatibility, we remap the names of parameters from
             # means->gauss_params.means since old checkpoints have that format
-            for p in ["xyz","t", "scales_xyz","scales_t" ,"quats1","quats2", "features_dc", "features_rest", "opacities"]:
+            for p in ["xyz","t", "scales_xyz","scales_t" ,"quats1","quats2", "features_dc", "features_rest", "opacities", "_objects_dc"]:
                 dict[f"gauss_params.{p}"] = dict[p]
         newp = dict["gauss_params.xyz"].shape[0]
         for name, param in self.gauss_params.items():
@@ -781,6 +788,8 @@ class SplatfactoModel(Model):
         # step 5, sample new quats
         new_quats1 = self.quats1[split_mask].repeat(samps, 1)
         new_quats2 = self.quats2[split_mask].repeat(samps, 1)
+        new_objects_dc = self._objects_dc[split_mask].repeat(samps, 1)
+
         out = {
             "xyz": new_xyz,
             "t" : new_t,
@@ -791,6 +800,7 @@ class SplatfactoModel(Model):
             "scales_t": new_scale_t,
             "quats1": new_quats1,
             "quats2": new_quats2,
+            "_objects_dc":new_objects_dc
         }
         for name, param in self.gauss_params.items():
             if name not in out:
@@ -846,7 +856,7 @@ class SplatfactoModel(Model):
         # specify more if they want to add more optimizable params to gaussians.
         return {
             name: [self.gauss_params[name]]
-            for name in ["xyz", "t","scales_xyz","scales_t", "quats1","quats2", "features_dc", "features_rest", "opacities"]
+            for name in ["xyz", "t","scales_xyz","scales_t", "quats1","quats2", "features_dc", "features_rest", "opacities", "_objects_dc"]
         }
 
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
