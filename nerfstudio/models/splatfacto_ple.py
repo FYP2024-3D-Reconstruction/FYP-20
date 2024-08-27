@@ -898,7 +898,9 @@ class Splatfacto_pleModel(Model):
     def forward_1(self,camera,background):
         camera_to_world=camera.camera_to_worlds[0]
         camera_to_world[:3, 1:3] *= -1
-        world_to_camera = torch.linalg.inv(camera_to_world).to(torch.float)
+        camera_to_world_homogeneous = torch.eye(4, device=camera_to_world.device, dtype=camera_to_world.dtype) # These lines were add by me to fix the dimentionality issue.
+        camera_to_world_homogeneous[:3,:] = camera_to_world # This too
+        world_to_camera = torch.linalg.inv(camera_to_world_homogeneous).to(torch.float) # This was previously required 3x3 matrix but got 3x4 
         R = world_to_camera[:3, :3]
         #R[0],R[1] = R[1].clone() , R[0].clone()
         T = world_to_camera[:3, 3]
