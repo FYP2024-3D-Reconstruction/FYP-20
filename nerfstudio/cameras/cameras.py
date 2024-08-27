@@ -287,7 +287,7 @@ class Cameras(TensorDataclass):
             if batch_size.ndim == 0 or batch_size.shape[-1] != 1:
                 batch_size = batch_size.unsqueeze(-1).to(self.device)
         else:
-            raise ValueError(f"batch_size must be None or a tensor, got {type(bathc_size)}")
+            raise ValueError(f"batch_size must be None or a tensor, got {type(batch_size)}")
 
         return batch_size
 
